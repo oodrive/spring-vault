@@ -15,14 +15,8 @@
  */
 package org.springframework.vault.authentication;
 
-import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.TaskScheduler;
@@ -34,7 +28,13 @@ import org.springframework.util.StringUtils;
 import org.springframework.vault.client.VaultClient;
 import org.springframework.vault.client.VaultException;
 import org.springframework.vault.client.VaultResponseEntity;
+import org.springframework.vault.support.VaultResponse;
 import org.springframework.vault.support.VaultToken;
+
+import java.util.Date;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Lifecycle-aware Session Manager. This {@link SessionManager} obtains tokens from a
@@ -179,9 +179,17 @@ public class LifecycleAwareSessionManager implements SessionManager, DisposableB
 		logger.info("Scheduling Token renewal");
 
 		LoginToken loginToken = (LoginToken) token;
+		long tokenTtl = loginToken.getLeaseDuration();
+
+		VaultResponseEntity<VaultResponse> entity = vaultClient.getForEntity("auth/token/lookup-self", token, VaultResponse.class);
+		if (entity.isSuccessful() && entity.hasBody()) {
+			Map<String, Object> data = entity.getBody().getData();
+			tokenTtl = (Integer) data.get("ttl");
+		}
+
 		final int seconds = NumberUtils
 				.convertNumberToTargetClass(
-						Math.max(1, loginToken.getLeaseDuration()
+						Math.max(1, tokenTtl
 								- REFRESH_PERIOD_BEFORE_EXPIRY), Integer.class);
 
 		final Runnable task = new Runnable() {

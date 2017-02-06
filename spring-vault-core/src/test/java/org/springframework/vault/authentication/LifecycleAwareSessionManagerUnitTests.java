@@ -15,8 +15,6 @@
  */
 package org.springframework.vault.authentication;
 
-import java.net.URI;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,27 +22,27 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
-
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.vault.client.VaultClient;
 import org.springframework.vault.client.VaultResponseEntity;
+import org.springframework.vault.support.VaultResponse;
 import org.springframework.vault.support.VaultToken;
+
+import java.net.URI;
+import java.util.HashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link LifecycleAwareSessionManager}.
- * 
+ *
  * @author Mark Paluch
  */
 @RunWith(MockitoJUnitRunner.class)
@@ -130,6 +128,10 @@ public class LifecycleAwareSessionManagerUnitTests {
 	public void shouldScheduleTokenRenewal() {
 
 		when(clientAuthentication.login()).thenReturn(LoginToken.renewable("login", 5));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		sessionManager.getSessionToken();
 
@@ -145,6 +147,10 @@ public class LifecycleAwareSessionManagerUnitTests {
 						eq(LoginToken.renewable("login", 5)), ArgumentMatchers.any(),
 						any(Class.class))).thenReturn(
 				new ResponseEntity<Object>(null, HttpStatus.OK, null, null));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
 
@@ -167,6 +173,10 @@ public class LifecycleAwareSessionManagerUnitTests {
 						eq(LoginToken.renewable("login", 5)), ArgumentMatchers.any(),
 						any(Class.class))).thenReturn(
 				new ResponseEntity<Object>(null, HttpStatus.OK, null, null));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
 
@@ -185,6 +195,10 @@ public class LifecycleAwareSessionManagerUnitTests {
 				taskScheduler, vaultClient);
 
 		when(clientAuthentication.login()).thenReturn(LoginToken.renewable("login", 5));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		ArgumentCaptor<Trigger> triggerCaptor = ArgumentCaptor.forClass(Trigger.class);
 
@@ -205,6 +219,10 @@ public class LifecycleAwareSessionManagerUnitTests {
 						any(Class.class))).thenReturn(
 				new ResponseEntity<Object>(null, HttpStatus.INTERNAL_SERVER_ERROR, null,
 						null));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
 
@@ -220,6 +238,10 @@ public class LifecycleAwareSessionManagerUnitTests {
 	public void shouldObtainTokenIfNoTokenAvailable() {
 
 		when(clientAuthentication.login()).thenReturn(LoginToken.renewable("login", 5));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		sessionManager.renewToken();
 
@@ -236,11 +258,34 @@ public class LifecycleAwareSessionManagerUnitTests {
 				vaultClient.postForEntity(anyString(), any(VaultToken.class),
 						ArgumentMatchers.any(), any(Class.class))).thenReturn(
 				new ResponseEntity<Object>(null, HttpStatus.BAD_REQUEST, null, null));
+		when(
+				vaultClient.getForEntity(eq("auth/token/lookup-self"),
+						eq(LoginToken.renewable("login", 5)), any(Class.class))).thenReturn(
+				new ResponseEntity<VaultResponse>(tokenLookupResponse(), HttpStatus.OK, null, null));
 
 		sessionManager.getSessionToken();
 
 		assertThat(sessionManager.renewToken()).isFalse();
 		verify(clientAuthentication, times(1)).login();
+	}
+
+	private VaultResponse tokenLookupResponse() {
+		HashMap<String, Object> data = new HashMap<String, Object>();
+		data.put("accessor", "token-accessor");
+		data.put("creation_time", 0);
+		data.put("creation_ttl", 3600);
+		data.put("display_name", "token-name");
+		data.put("explicit_max_ttl", 0);
+		data.put("num_uses", 0);
+		data.put("orphan", false);
+		data.put("path", "auth/token/create");
+		data.put("policies", new String[]{"default"});
+		data.put("renewable", true);
+		data.put("ttl", 10);
+
+		VaultResponse vaultResponse = new VaultResponse();
+		vaultResponse.setData(data);
+		return vaultResponse;
 	}
 
 	static class ResponseEntity<T> extends VaultResponseEntity<T> {
